@@ -1,4 +1,5 @@
 import numpy as np
+import random
 import pygame
 import sys
 import math
@@ -13,9 +14,8 @@ COLUMN_COUNT = 7
 MCTS_MAX_ITER = 3000
 MCTS_FACTOR = 2.0
 # MINMAX CONFIG
-MINMAX_DEPTH = 4
-DEFAULT_ALPHA = -9999999
-DEFAULT_BETA = 9999999
+MINMAX_DEPTH = 5
+MINMAX_PLAYER = -1
 
 # I cannot explain what this is for, only that Alfredo de la Fuente refers to it in her/his is_winner method
 dx = [1, 1,  1,  0]
@@ -26,7 +26,7 @@ BLUE = (0,0,255)
 BLACK = (0,0,0)
 RED = (255,0,0)
 YELLOW = (255,255,0)
-WAIT_TIME = 10000
+WAIT_TIME = 2000
 
 # Python dictionary to map integers (1, -1, 0) to characters ('x', 'o', ' ')
 # Used only for console version
@@ -108,30 +108,30 @@ class C4(object):
     # Find if most recent play was a winning move
     # There are two functions that try to achieve the same thing (determine if there is a winner)
     # However, is_winner looks at it irrelevant from who played last, and is more useful when exploring a state tree
-    def winning_move(self, piece):
+    def winning_move(self, player):
         # return False
         # Check horizontal locations for win
         for c in range(COLUMN_COUNT-3):
             for r in range(ROW_COUNT):
-                if self.board[r][c] == piece and self.board[r][c+1] == piece and self.board[r][c+2] == piece and self.board[r][c+3] == piece:
+                if self.board[r][c] == player and self.board[r][c+1] == player and self.board[r][c+2] == player and self.board[r][c+3] == player:
                     return True
     
         # Check vertical locations for win
         for c in range(COLUMN_COUNT):
             for r in range(ROW_COUNT-3):
-                if self.board[r][c] == piece and self.board[r+1][c] == piece and self.board[r+2][c] == piece and self.board[r+3][c] == piece:
+                if self.board[r][c] == player and self.board[r+1][c] == player and self.board[r+2][c] == player and self.board[r+3][c] == player:
                     return True
     
         # Check positively sloped diaganols
         for c in range(COLUMN_COUNT-3):
             for r in range(ROW_COUNT-3):
-                if self.board[r][c] == piece and self.board[r+1][c+1] == piece and self.board[r+2][c+2] == piece and self.board[r+3][c+3] == piece:
+                if self.board[r][c] == player and self.board[r+1][c+1] == player and self.board[r+2][c+2] == player and self.board[r+3][c+3] == player:
                     return True
     
         # Check negatively sloped diaganols
         for c in range(COLUMN_COUNT-3):
             for r in range(3, ROW_COUNT):
-                if self.board[r][c] == piece and self.board[r-1][c+1] == piece and self.board[r-2][c+2] == piece and self.board[r-3][c+3] == piece:
+                if self.board[r][c] == player and self.board[r-1][c+1] == player and self.board[r-2][c+2] == player and self.board[r-3][c+3] == player:
                     return True
                 
 
@@ -315,7 +315,7 @@ def expand(node, player):
 
 # Calculates the UCB for all child nodes and returns a random child node from the best UCBs
 def best_child(node, factor):
-    best_score = -10000000.0
+    best_score = -math.inf
     best_children = []
     for c in node.children:
         # Calculate the UCB for each node
@@ -356,67 +356,120 @@ def backpropagate(node, reward, player):
 
 # 3. Minmax with alpha/beta pruning
 # This algorithm works recursively
-def minimax(state, depth, alpha, beta, maximisingPlayer, player):
-    state_copy = copy.deepcopy(state)
-    valid_locations = state_copy.available_cols()
-    is_terminal = state_copy.game_ended() == False and len(valid_locations) == 0
+# def minimax(state, depth, alpha, beta, maximisingPlayer, player):
+#     state_copy = copy.deepcopy(state)
+#     valid_locations = state_copy.available_cols()
+#     is_terminal = is_terminal_node(state)
+
+#     if depth == 0 or is_terminal:
+#         if is_terminal:
+#             # Weight the minmax player winning really high
+#             if state_copy.winning_move(player):
+#                 return (None, 100000000000000)
+#             # Weight the other player winning really low
+#             elif state_copy.winning_move(-player):
+#                 return (None, -100000000000000)
+#             else:  # No more valid moves
+#                 return (None, 0)
+#         # Return the bot's score
+#         else:
+#             return (None, score_position(state_copy.board, player))
+
+#     if maximisingPlayer:
+#         value = -math.inf
+#         # Randomise column to start
+#         column = random.choice(valid_locations)
+#         for col in valid_locations:
+#             row = state_copy.get_next_open_row(col)
+
+#             # Drop a piece in the temporary board and record score
+#             state_copy.place_token(row, col, player)
+
+#             # Recursively calling itself (until depth is 0)
+#             new_score = minimax(state_copy, depth - 1, alpha, beta, False, -player)[1]
+
+#             if new_score > value:
+#                 value = new_score
+#                 # Make 'column' the best scoring column we can get
+#                 column = col
+#             alpha = max(alpha, value)
+#             if alpha >= beta:
+#                 break
+#         return column, value
+
+#     else:  # Minimising player
+#         value = math.inf
+#         # Randomise column to start
+#         # print(valid_locations)
+#         column = random.choice(valid_locations)
+#         for col in valid_locations:
+#             row = state_copy.get_next_open_row(col)
+
+#             # Drop a piece in the temporary board and record score
+#             state_copy.place_token(row, col, -player)
+
+#             # Recursively calling itself (until depth is 0)
+#             new_score = minimax(state_copy, depth - 1, alpha, beta, True, -player)[1]
+#             if new_score < value:
+#                 value = new_score
+#                 # Make 'column' the best scoring column we can get
+#                 column = col
+#             beta = min(beta, value)
+#             if alpha >= beta:
+#                 break
+#         return column, value
+def minimax(state, depth, alpha, beta, maximizingPlayer):
+    valid_locations = state.available_cols()
+    is_terminal = is_terminal_node(state)
 
     if depth == 0 or is_terminal:
         if is_terminal:
-            # Weight the minmax player winning really high
-            if state_copy.winning_move(player):
-                return (None, 9999999)
-            # Weight the other player winning really low
-            elif state_copy.winning_move(-player):
-                return (None, -9999999)
-            else:  # No more valid moves
+            if state.winning_move(MINMAX_PLAYER):
+                return (None, 100000000000000)
+            elif state.winning_move(-MINMAX_PLAYER):
+                return (None, -10000000000000)
+            else: # Game is over, no more valid moves
                 return (None, 0)
-        # Return the bot's score
-        else:
-            return (None, score_position(state_copy.board, player))
-
-    if maximisingPlayer:
-        value = -9999999
-        # Randomise column to start
-        column = np.random.choice(valid_locations)
+        else: # Depth is zero
+            return (None, score_position(state, MINMAX_PLAYER))
+        
+    if maximizingPlayer:
+        value = -math.inf
+        column = random.choice(valid_locations)
         for col in valid_locations:
-            row = state_copy.get_next_open_row(col)
-
-            # Drop a piece in the temporary board and record score
-            state_copy.place_token(row, col, player)
-
-            # Recursively calling itself (until depth is 0)
-            new_score = minimax(state_copy, depth - 1, alpha, beta, False, -player)[1]
-
+            row = state.get_next_open_row(col)
+            state_cp = copy.deepcopy(state)
+            state_cp.place_token(row, col, MINMAX_PLAYER)
+            new_score = minimax(state_cp, depth-1, alpha, beta, False)[1]
             if new_score > value:
                 value = new_score
-                # Make 'column' the best scoring column we can get
                 column = col
             alpha = max(alpha, value)
             if alpha >= beta:
                 break
+        # print("MAX VALUE = ", value)
         return column, value
 
-    else:  # Minimising player
-        value = 9999999
-        # Randomise column to start
-        column = np.random.choice(valid_locations)
+    else: # Minimizing player
+        value = math.inf
+        column = random.choice(valid_locations)
         for col in valid_locations:
-            row = state_copy.get_next_open_row(col)
-
-            # Drop a piece in the temporary board and record score
-            state_copy.place_token(row, col, -player)
-
-            # Recursively calling itself (until depth is 0)
-            new_score = minimax(state_copy, depth - 1, alpha, beta, True, -player)[1]
+            row = state.get_next_open_row(col)
+            state_cp = copy.deepcopy(state)
+            state_cp.place_token(row, col, -MINMAX_PLAYER)
+            new_score = minimax(state_cp, depth-1, alpha, beta, True)[1]
             if new_score < value:
                 value = new_score
-                # Make 'column' the best scoring column we can get
                 column = col
             beta = min(beta, value)
             if alpha >= beta:
                 break
+        # print("MIN VALUE = ", value)
         return column, value
+
+# Determines if the game state is final (winner or draw)
+def is_terminal_node(state):
+    return state.winning_move(1) or state.winning_move(-1) or len(state.available_cols()) == 0
 
 # TODO: UNDERSTAND THIS
 def evaluate_window(window, player):
@@ -425,7 +478,7 @@ def evaluate_window(window, player):
     opp_player = -player
 
     # Prioritise a winning move
-    # Minimax makes this less important
+    # Minmax makes this less important
     if window.count(player) == 4:
         score += 100
     # Make connecting 3 second priority
@@ -442,17 +495,17 @@ def evaluate_window(window, player):
     return score
 
 # TODO: UNDERSTAND THIS
-def score_position(board, player):
+def score_position(state, player):
     score = 0
 
     # Score centre column
-    centre_array = [int(i) for i in list(board[:, COLUMN_COUNT // 2])]
+    centre_array = [int(i) for i in list(state.board[:, COLUMN_COUNT // 2])]
     centre_count = centre_array.count(player)
     score += centre_count * 3
 
     # Score horizontal positions
     for r in range(ROW_COUNT):
-        row_array = [int(i) for i in list(board[r, :])]
+        row_array = [int(i) for i in list(state.board[r, :])]
         for c in range(COLUMN_COUNT - 3):
             # Create a horizontal window of 4
             window = row_array[c:c + 4]
@@ -460,7 +513,7 @@ def score_position(board, player):
 
     # Score vertical positions
     for c in range(COLUMN_COUNT):
-        col_array = [int(i) for i in list(board[:, c])]
+        col_array = [int(i) for i in list(state.board[:, c])]
         for r in range(ROW_COUNT - 3):
             # Create a vertical window of 4
             window = col_array[r:r + 4]
@@ -470,14 +523,14 @@ def score_position(board, player):
     for r in range(ROW_COUNT - 3):
         for c in range(COLUMN_COUNT - 3):
             # Create a positive diagonal window of 4
-            window = [board[r + i][c + i] for i in range(4)]
+            window = [state.board[r + i][c + i] for i in range(4)]
             score += evaluate_window(window, player)
 
     # Score negative diagonals
     for r in range(ROW_COUNT - 3):
         for c in range(COLUMN_COUNT - 3):
             # Create a negative diagonal window of 4
-            window = [board[r + 3 - i][c + i] for i in range(4)]
+            window = [state.board[r + 3 - i][c + i] for i in range(4)]
             score += evaluate_window(window, player)
 
     return score
@@ -527,19 +580,17 @@ while not game_over:
         # play_random(player, game)
 
         # Get best move using MCTS
-        o = Node(game)
-        best_move = MCTS(MCTS_MAX_ITER, o, MCTS_FACTOR, player)
-        game = copy.deepcopy(best_move.state)
+        # o = Node(game)
+        # best_move = MCTS(MCTS_MAX_ITER, o, MCTS_FACTOR, player)
+        # game = copy.deepcopy(best_move.state)
 
         # Get best move using minmax
-        # col, minimax_score = minimax(game, MINMAX_DEPTH, DEFAULT_ALPHA, DEFAULT_BETA, True, player)
-        # if game.try_move(col):
-        #     row = game.get_next_open_row(col)
-        #     game.place_token(row, col, player)
-        # else:
-        #     print("nope!")
-
-
+        col, minimax_score = minimax(game, MINMAX_DEPTH, -math.inf, math.inf, True)
+        if game.try_move(col):
+            row = game.get_next_open_row(col)
+            game.place_token(row, col, player)
+        else:
+            print("nope!")
 
         if game.winning_move(player):
             label = myfont.render("Player 2 wins!!", 2, YELLOW)

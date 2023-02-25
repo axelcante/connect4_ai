@@ -7,6 +7,7 @@ import copy
 
 # Followed the python tutorial https://www.askpython.com/python/examples/connect-four-game
 # Followed MCTS implementation https://github.com/Alfo5123/Connect4/blob/master/README.md
+# Followed Minmax with Alpha/Beta pruning implementation https://medium.com/analytics-vidhya/artificial-intelligence-at-play-connect-four-minimax-algorithm-explained-3b5fc32e4a4f
 
 ROW_COUNT = 6
 COLUMN_COUNT = 7
@@ -356,68 +357,6 @@ def backpropagate(node, reward, player):
 
 # 3. Minmax with alpha/beta pruning
 # This algorithm works recursively
-# def minimax(state, depth, alpha, beta, maximisingPlayer, player):
-#     state_copy = copy.deepcopy(state)
-#     valid_locations = state_copy.available_cols()
-#     is_terminal = is_terminal_node(state)
-
-#     if depth == 0 or is_terminal:
-#         if is_terminal:
-#             # Weight the minmax player winning really high
-#             if state_copy.winning_move(player):
-#                 return (None, 100000000000000)
-#             # Weight the other player winning really low
-#             elif state_copy.winning_move(-player):
-#                 return (None, -100000000000000)
-#             else:  # No more valid moves
-#                 return (None, 0)
-#         # Return the bot's score
-#         else:
-#             return (None, score_position(state_copy.board, player))
-
-#     if maximisingPlayer:
-#         value = -math.inf
-#         # Randomise column to start
-#         column = random.choice(valid_locations)
-#         for col in valid_locations:
-#             row = state_copy.get_next_open_row(col)
-
-#             # Drop a piece in the temporary board and record score
-#             state_copy.place_token(row, col, player)
-
-#             # Recursively calling itself (until depth is 0)
-#             new_score = minimax(state_copy, depth - 1, alpha, beta, False, -player)[1]
-
-#             if new_score > value:
-#                 value = new_score
-#                 # Make 'column' the best scoring column we can get
-#                 column = col
-#             alpha = max(alpha, value)
-#             if alpha >= beta:
-#                 break
-#         return column, value
-
-#     else:  # Minimising player
-#         value = math.inf
-#         # Randomise column to start
-#         # print(valid_locations)
-#         column = random.choice(valid_locations)
-#         for col in valid_locations:
-#             row = state_copy.get_next_open_row(col)
-
-#             # Drop a piece in the temporary board and record score
-#             state_copy.place_token(row, col, -player)
-
-#             # Recursively calling itself (until depth is 0)
-#             new_score = minimax(state_copy, depth - 1, alpha, beta, True, -player)[1]
-#             if new_score < value:
-#                 value = new_score
-#                 # Make 'column' the best scoring column we can get
-#                 column = col
-#             beta = min(beta, value)
-#             if alpha >= beta:
-#                 break
-#         return column, value
 def minimax(state, depth, alpha, beta, maximizingPlayer):
     valid_locations = state.available_cols()
     is_terminal = is_terminal_node(state)
@@ -538,8 +477,6 @@ def score_position(state, player):
 
 
 # PYGAME GUI AND INITIALIZATIONS ----------------------------------
-# Initialize the board
-
 # GAME VARIABLES
 # Create a Connect4 object with a board and available columns tracker variables
 game = C4()

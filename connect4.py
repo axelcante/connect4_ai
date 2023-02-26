@@ -5,20 +5,21 @@ import sys
 import math
 import copy
 
-# Followed the python tutorial https://www.askpython.com/python/examples/connect-four-game
-# Followed MCTS implementation https://github.com/Alfo5123/Connect4/blob/master/README.md
-# Followed Minmax with Alpha/Beta pruning implementation https://medium.com/analytics-vidhya/artificial-intelligence-at-play-connect-four-minimax-algorithm-explained-3b5fc32e4a4f
+# Followed the python tutorial by Siddhi Sawant - https://www.askpython.com/python/examples/connect-four-game
+# Followed MCTS implementation by Alfredo de la Fuente - https://github.com/Alfo5123/Connect4/blob/master/README.md
+# Followed Minmax with Alpha/Beta pruning implementation by Keith Galli - https://github.com/KeithGalli/Connect4-Python/blob/master/connect4_with_ai.py
 
+# BOARD CONFIG
 ROW_COUNT = 6
 COLUMN_COUNT = 7
 # MCTS CONFIG
-MCTS_MAX_ITER = 3000
+MCTS_MAX_ITER = 5000
 MCTS_FACTOR = 2.0
 # MINMAX CONFIG
 MINMAX_DEPTH = 5
 MINMAX_PLAYER = -1
 
-# I cannot explain what this is for, only that Alfredo de la Fuente refers to it in her/his is_winner method
+# I cannot explain what this is for, only that Alfredo de la Fuente refers to it in their is_winner method
 dx = [1, 1,  1,  0]
 dy = [1, 0,  -1,  1]
 
@@ -27,13 +28,23 @@ BLUE = (0,0,255)
 BLACK = (0,0,0)
 RED = (255,0,0)
 YELLOW = (255,255,0)
-WAIT_TIME = 2000
+
+# PYGAME DELAY BETWEEN GAMES AND TURNS
+WAIT_TIME = 10000
+TURN_DELAY = 2000
 
 # Python dictionary to map integers (1, -1, 0) to characters ('x', 'o', ' ')
 # Used only for console version
 symbols = { 1:'x',
            -1:'o',
             0:' '}
+
+# Determine which agent controls Player 1 or Player 2
+# 4 choices: human, random selector, minmax algorithm or mcts
+agents = { 0: 'player',
+           1: 'rand',
+           2: 'minmax',
+           3: 'mcts' }
 
 
 
@@ -245,7 +256,7 @@ class Node():
 
 
 
-    # Determines if there are still nodes to explore (TODO: I THINK?)
+    # Determines if there are still nodes to explore
     def fully_explored(self):
         if len(self.children) == len(self.state.available_cols()):
             return True
@@ -255,17 +266,14 @@ class Node():
 
 # AI PLAYING TECHNIQUES -----------------
 # 1. RANDOM
-def play_random(player, game):
+def play_random(game):
     # Choose a random available column
     if len(game.available_cols()) > 0:
         col = np.random.choice(game.available_cols())
-        row = game.get_next_open_row(col)
-        game.place_token(row, col, player)
-
-        return True
+        return col
     else:
         # No more columns available, game has ended (check if player won, else is draw)
-        return False
+        return -1
 
 
 
@@ -278,7 +286,6 @@ def MCTS(max_iter, root, factor, player):
         backpropagate(front, reward, p)
 
     ans = best_child(root, 0)
-    print ((c.reward/c.visits) for c in ans.parent.children)
     return ans
 
 
@@ -406,11 +413,16 @@ def minimax(state, depth, alpha, beta, maximizingPlayer):
         # print("MIN VALUE = ", value)
         return column, value
 
+
+
 # Determines if the game state is final (winner or draw)
 def is_terminal_node(state):
     return state.winning_move(1) or state.winning_move(-1) or len(state.available_cols()) == 0
 
-# TODO: UNDERSTAND THIS
+
+
+# This function is called in the below "score_position" method
+# It simply applies a value to a given pattern (to avoid repeating it for all pattern cases)
 def evaluate_window(window, player):
     score = 0
     # Switch scoring based on turn
@@ -433,7 +445,11 @@ def evaluate_window(window, player):
 
     return score
 
-# TODO: UNDERSTAND THIS
+
+
+# Takes a given board state and applies a score to the relevant player
+# This function counts desirable patterns (two in a row, three in a row, winner) which have a point weight 
+# Minmax uses this to determine which moves are worth more (or less) when computing its optimal strategy
 def score_position(state, player):
     score = 0
 
@@ -486,6 +502,16 @@ player = 1
 mvcntr = 1
 # Track if the game is over or not (originally this is false)
 game_over = False
+# Track which players are currently playing against each other
+# player_1_agent = agents[0] # 0 - HUMAN
+# player_1_agent = agents[1] # 1 - RANDOM
+# player_1_agent = agents[2] # 2 - MINMAX
+player_1_agent = agents[3] # 3 - MCTS
+
+# player_2_agent = agents[2] # 0 - HUMAN
+# player_2_agent = agents[2] # 1 - RANDOM
+player_2_agent = agents[2] # 2 - MINMAX
+# player_2_agent = agents[2] # 3 - MCTS
 
 # Initialize game
 pygame.init()
@@ -512,27 +538,61 @@ myfont = pygame.font.SysFont("monospace", 75)
 ## GAME LOOP --------------------------------------------------
 while not game_over:
 
-    # Let's have player 2 play using MCTS
-    if player == -1:
-        # play_random(player, game)
+    # Player 1 is controlled by the player or MCTS agent
+    if player == 1:
+        # Add a delay to avoid AI playing too fast
+        pygame.time.wait(TURN_DELAY)
 
-        # Get best move using MCTS
-        # o = Node(game)
-        # best_move = MCTS(MCTS_MAX_ITER, o, MCTS_FACTOR, player)
-        # game = copy.deepcopy(best_move.state)
+        # Player 1 can be human, MCTS or Minmax
+        if player_1_agent == 'human':
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
 
-        # Get best move using minmax
-        col, minimax_score = minimax(game, MINMAX_DEPTH, -math.inf, math.inf, True)
-        if game.try_move(col):
-            row = game.get_next_open_row(col)
-            game.place_token(row, col, player)
-        else:
-            print("nope!")
+                if event.type == pygame.MOUSEMOTION:
+                    pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
+                    posx = event.pos[0]
+                    if player == 1:
+                        pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2)), RADIUS)
+                    else: 
+                        pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE/2)), RADIUS)
+                pygame.display.update()
+        
+                # Player 1 is controlled by the Player
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
 
+                    if player == 1:
+                        posx = event.pos[0]
+                        col = int(math.floor(posx/SQUARESIZE))
+
+                        # Apply move to game state
+                        if game.try_move(col):
+                            row = game.get_next_open_row(col)
+                            game.place_token(row, col, player)
+
+        # Player 1 is controlled by MCTS agent
+        elif player_1_agent == 'mcts':
+            # Get best move using MCTS
+            o = Node(game)
+            best_move = MCTS(MCTS_MAX_ITER, o, MCTS_FACTOR, player)
+            game = copy.deepcopy(best_move.state)
+
+        # Player 1 is controlled by Minmax agent
+        elif player_1_agent == 'minmax':
+            col, minimax_score = minimax(game, MINMAX_DEPTH, -math.inf, math.inf, True)
+
+            # Apply move to game state
+            if game.try_move(col):
+                row = game.get_next_open_row(col)
+                game.place_token(row, col, player)
+            
+        # Detect if Player 1 has won
         if game.winning_move(player):
-            label = myfont.render("Player 2 wins!!", 2, YELLOW)
+            label = myfont.render("Player 1 wins!!", 1, RED)
             screen.blit(label, (40,10))
             game_over = True
+        # Detect if game has ended with no winner (DRAW)
         elif game.game_ended():
             label = myfont.render("Draw", 1, BLUE)
             screen.blit(label, (40,10))
@@ -543,63 +603,93 @@ while not game_over:
 
         # Increment move counter
         mvcntr += 1
-
+        
+        # Refresh game board
         game.print_board()
 
+        # Reset game after delay when game has ended
         if game_over:
             pygame.time.wait(WAIT_TIME)
             game_over = False
             player = 1
             game.reset_board()
             game.print_board()
-
-    # Player 1 is controlled by the player
-    else:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                sys.exit()
+            pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
     
-            if event.type == pygame.MOUSEMOTION:
-                pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
-                posx = event.pos[0]
-                if player == 1:
-                    pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2)), RADIUS)
-                else: 
-                    pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE/2)), RADIUS)
-            pygame.display.update()
-    
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
+    # Let's have player 2 play using random or minmax agent or MCTS
+    if player == -1:
+        # Add a delay to avoid AI playing too fast
+        pygame.time.wait(TURN_DELAY)
 
-                # Ask for Player 1 Input
-                if player == 1:
+        # Player 1 is controlled by the player or MCTS agent
+        if player_2_agent == 'human':
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    sys.exit()
+
+                if event.type == pygame.MOUSEMOTION:
+                    pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
                     posx = event.pos[0]
-                    col = int(math.floor(posx/SQUARESIZE))
-    
-                    if game.try_move(col):
-                        row = game.get_next_open_row(col)
-                        game.place_token(row, col, player)
-    
-                        if game.winning_move(player):
-                            label = myfont.render("Player 1 wins!!", 1, RED)
-                            screen.blit(label, (40,10))
-                            game_over = True
-                        elif game.game_ended():
-                            label = myfont.render("Draw", 1, BLUE)
-                            screen.blit(label, (40,10))
-                            game_over = True
+                    if player == 1:
+                        pygame.draw.circle(screen, RED, (posx, int(SQUARESIZE/2)), RADIUS)
+                    else: 
+                        pygame.draw.circle(screen, YELLOW, (posx, int(SQUARESIZE/2)), RADIUS)
+                pygame.display.update()
+        
+                # Player 1 is controlled by the Player
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
 
-                        # Mark the next player to play
-                        player *= -1
+                    if player == 1:
+                        posx = event.pos[0]
+                        col = int(math.floor(posx/SQUARESIZE))
 
-                        # Increment move counter
-                        mvcntr += 1
-                
-                game.print_board()
+                        # Apply move to game state
+                        if game.try_move(col):
+                            row = game.get_next_open_row(col)
+                            game.place_token(row, col, player)
 
-                if game_over:
-                    pygame.time.wait(WAIT_TIME)
-                    game_over = False
-                    player = 1
-                    game.reset_board()
-                    game.print_board()
+        # Player 1 is controlled by MCTS agent
+        elif player_2_agent == 'mcts':
+            # Get best move using MCTS
+            o = Node(game)
+            best_move = MCTS(MCTS_MAX_ITER, o, MCTS_FACTOR, player)
+            game = copy.deepcopy(best_move.state)
+
+        # Player 1 is controlled by Minmax agent
+        elif player_2_agent == 'minmax':
+            col, minimax_score = minimax(game, MINMAX_DEPTH, -math.inf, math.inf, True)
+
+            # Apply move to game state
+            if game.try_move(col):
+                row = game.get_next_open_row(col)
+                game.place_token(row, col, player)
+            
+        # Detect if Player 1 has won
+        if game.winning_move(player):
+            label = myfont.render("Player 1 wins!!", 1, RED)
+            screen.blit(label, (40,10))
+            game_over = True
+        # Detect if game has ended with no winner (DRAW)
+        elif game.game_ended():
+            label = myfont.render("Draw", 1, BLUE)
+            screen.blit(label, (40,10))
+            game_over = True
+
+        # Mark the next player to play
+        player *= -1
+
+        # Increment move counter
+        mvcntr += 1
+        
+        # Refresh game board
+        game.print_board()
+
+        # Reset game after delay when game has ended
+        if game_over:
+            pygame.time.wait(WAIT_TIME)
+            game_over = False
+            player = 1
+            game.reset_board()
+            game.print_board()
+            pygame.draw.rect(screen, BLACK, (0,0, width, SQUARESIZE))
